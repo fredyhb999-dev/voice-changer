@@ -244,6 +244,13 @@
 
         loadVoices();
 
+        // Auto-convertir cuando cambia la voz si ya hay audio grabado
+        voiceSelect.addEventListener('change', () => {
+            if (audioBlob && voiceSelect.value) {
+                convertVoice();
+            }
+        });
+
         function showStatus(message, type = '') {
             statusDiv.textContent = message;
             statusDiv.className = 'status ' + type;
@@ -275,7 +282,7 @@
                     audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     stream.getTracks().forEach(track => track.stop());
                     convertBtn.classList.remove('hidden');
-                    showStatus('Grabación lista. Ahora dale a "Convertir voz"', 'success');
+                    showStatus('Grabación lista. Selecciona una voz y se convertirá automáticamente.', 'success');
                 };
 
                 mediaRecorder.start();
@@ -290,22 +297,14 @@
             }
         });
 
-        convertBtn.addEventListener('click', async () => {
+        async function convertVoice() {
             const voiceId = voiceSelect.value;
 
-            if (!voiceId) {
-                showStatus('Por favor selecciona una voz', 'error');
-                return;
-            }
-
-            if (!audioBlob) {
-                showStatus('Primero graba un audio', 'error');
-                return;
-            }
+            if (!voiceId || !audioBlob) return;
 
             convertBtn.disabled = true;
             convertBtn.innerHTML = '<span class="icon">⏳</span> Convirtiendo...';
-            showStatus('Enviando a ElevenLabs... Esto puede tardar unos segundos.');
+            showStatus('Convirtiendo con la voz seleccionada...');
 
             try {
                 const reader = new FileReader();
@@ -353,7 +352,9 @@
                 convertBtn.disabled = false;
                 convertBtn.innerHTML = '<span class="icon">✨</span> Convertir voz';
             }
-        });
+        }
+
+        convertBtn.addEventListener('click', convertVoice);
     </script>
 </body>
 </html>
