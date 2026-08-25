@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Changer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            background: #0f172a;
+            color: #fff;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #7c3aed;
+        }
+
+        input::placeholder {
+            color: #64748b;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-record {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            color: white;
+        }
+
+        .btn-record:hover {
+            transform: scale(1.02);
+        }
+
+        .btn-record.recording {
+            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+            animation: pulse 1.5s infinite;
+        }
+
+        .btn-convert {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            color: white;
+            margin-top: 15px;
+        }
+
+        .btn-convert:hover:not(:disabled) {
+            transform: scale(1.02);
+        }
+
+        .btn-convert:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            margin-top: 15px;
+        }
+
+        .btn-download:hover {
+            transform: scale(1.02);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 12px;
+            border-radius: 10px;
+            background: #1e293b;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .status.error {
+            background: #450a0a;
+            color: #fca5a5;
+        }
+
+        .status.success {
+            background: #052e16;
+            color: #6ee7b7;
+        }
+
+        .audio-player {
+            margin-top: 20px;
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+        .audio-player audio {
+            width: 100%;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .icon {
+            font-size: 1.3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Voice Changer</h1>
+        <p class="subtitle">Graba y convierte tu voz con ElevenLabs</p>
+
+        <div class="input-group">
+            <label for="voiceId">Voice ID</label>
+            <input 
+                type="text" 
+                id="voiceId" 
+                placeholder="Pega tu Voice ID aquí"
+            >
+        </div>
+
+        <button class="btn btn-record" id="recordBtn">
+            <span class="icon">🎤</span>
+            <span id="recordText">Grabar</span>
+        </button>
+
+        <div class="status hidden" id="status"></div>
+
+        <button class="btn btn-convert hidden" id="convertBtn">
+            <span class="icon">✨</span>
+            Convertir voz
+        </button>
+
+        <div class="audio-player hidden" id="playerContainer">
+            <audio id="audioPlayer" controls></audio>
+        </div>
+
+        <button class="btn btn-download hidden" id="downloadBtn">
+            <span class="icon">⬇️</span>
+            Descargar audio
+        </button>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('recordBtn');
+        const recordText = document.getElementById('recordText');
+        const convertBtn = document.getElementById('convertBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusDiv = document.getElementById('status');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const playerContainer = document.getElementById('playerContainer');
+        const voiceIdInput = document.getElementById('voiceId');
+
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let audioBlob = null;
+
+        function showStatus(message, type = '') {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.classList.remove('hidden');
+        }
+
+        function hideStatus() {
+            statusDiv.classList.add('hidden');
+        }
+
+        recordBtn.addEventListener('click', async () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recordBtn.classList.remove('recording');
+                recordText.textContent = 'Grabar';
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    stream.getTracks().forEach(track => track.stop());
+                    convertBtn.classList.remove('hidden');
+                    showStatus('Grabación lista. Ahora dale a "Convertir voz"', 'success');
+                };
+
+                mediaRecorder.start();
+                recordBtn.classList.add('recording');
+                recordText.textContent = 'Detener';
+                hideStatus();
+                convertBtn.classList.add('hidden');
+                downloadBtn.classList.add('hidden');
+                playerContainer.classList.add('hidden');
+            } catch (err) {
+                showStatus('Error: No se pudo acceder al micrófono', 'error');
+            }
+        });
+
+        convertBtn.addEventListener('click', async () => {
+            const voiceId = voiceIdInput.value.trim();
+
+            if (!voiceId) {
+                showStatus('Por favor ingresa tu Voice ID', 'error');
+                return;
+            }
+
+            if (!audioBlob) {
+                showStatus('Primero graba un audio', 'error');
+                return;
+            }
+
+            convertBtn.disabled = true;
+            convertBtn.innerHTML = '<span class="icon">⏳</span> Convirtiendo...';
+            showStatus('Enviando a ElevenLabs... Esto puede tardar unos segundos.');
+
+            try {
+                const reader = new FileReader();
+                reader.onloadend = async function() {
+                    const base64Audio = reader.result.split(',')[1];
+
+                    const response = await fetch('/api/convert-voice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            audio: base64Audio,
+                            voiceId: voiceId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Error al convertir el audio');
+                    }
+
+                    const resultBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(resultBlob);
+
+                    audioPlayer.src = audioUrl;
+                    playerContainer.classList.remove('hidden');
+                    downloadBtn.classList.remove('hidden');
+
+                    downloadBtn.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = audioUrl;
+                        a.download = 'voice-converted.mp3';
+                        a.click();
+                    };
+
+                    showStatus('¡Audio convertido exitosamente!', 'success');
+                    convertBtn.disabled = false;
+                    convertBtn.innerHTML = '<span class="icon">✨</span> Convertir voz';
+                };
+
+                reader.readAsDataURL(audioBlob);
+            } catch (err) {
+                showStatus('Error: ' + err.message, 'error');
+                convertBtn.disabled = false;
+                convertBtn.innerHTML = '<span class="icon">✨</span> Convertir voz';
+            }
+        });
+    </script>
+</body>
+</html>
