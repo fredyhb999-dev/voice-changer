@@ -51,7 +51,7 @@
             font-size: 0.9rem;
         }
 
-        input[type="text"] {
+        select, input[type="text"] {
             width: 100%;
             padding: 14px;
             border: 2px solid #334155;
@@ -60,15 +60,20 @@
             color: #fff;
             font-size: 1rem;
             transition: border-color 0.3s;
+            appearance: none;
+            cursor: pointer;
         }
 
-        input[type="text"]:focus {
+        select:focus, input[type="text"]:focus {
             outline: none;
             border-color: #7c3aed;
         }
 
-        input::placeholder {
-            color: #64748b;
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 40px;
         }
 
         .btn {
@@ -176,12 +181,10 @@
         <p class="subtitle">Graba y convierte tu voz con ElevenLabs</p>
 
         <div class="input-group">
-            <label for="voiceId">Voice ID</label>
-            <input 
-                type="text" 
-                id="voiceId" 
-                placeholder="Pega tu Voice ID aquí"
-            >
+            <label for="voiceSelect">Selecciona una voz</label>
+            <select id="voiceSelect">
+                <option value="">Cargando voces...</option>
+            </select>
         </div>
 
         <button class="btn btn-record" id="recordBtn">
@@ -214,11 +217,32 @@
         const statusDiv = document.getElementById('status');
         const audioPlayer = document.getElementById('audioPlayer');
         const playerContainer = document.getElementById('playerContainer');
-        const voiceIdInput = document.getElementById('voiceId');
+        const voiceSelect = document.getElementById('voiceSelect');
 
         let mediaRecorder = null;
         let audioChunks = [];
         let audioBlob = null;
+
+        // Cargar voces desde el JSON
+        async function loadVoices() {
+            try {
+                const response = await fetch('/voices.json');
+                const voices = await response.json();
+
+                voiceSelect.innerHTML = '<option value="">Selecciona una voz</option>';
+
+                voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.id;
+                    option.textContent = voice.name;
+                    voiceSelect.appendChild(option);
+                });
+            } catch (error) {
+                voiceSelect.innerHTML = '<option value="">Error al cargar voces</option>';
+            }
+        }
+
+        loadVoices();
 
         function showStatus(message, type = '') {
             statusDiv.textContent = message;
@@ -267,10 +291,10 @@
         });
 
         convertBtn.addEventListener('click', async () => {
-            const voiceId = voiceIdInput.value.trim();
+            const voiceId = voiceSelect.value;
 
             if (!voiceId) {
-                showStatus('Por favor ingresa tu Voice ID', 'error');
+                showStatus('Por favor selecciona una voz', 'error');
                 return;
             }
 
