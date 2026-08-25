@@ -51,7 +51,7 @@
             font-size: 0.9rem;
         }
 
-        select, input[type="text"] {
+        select {
             width: 100%;
             padding: 14px;
             border: 2px solid #334155;
@@ -64,7 +64,7 @@
             cursor: pointer;
         }
 
-        select:focus, input[type="text"]:focus {
+        select:focus {
             outline: none;
             border-color: #7c3aed;
         }
@@ -103,21 +103,6 @@
         .btn-record.recording {
             background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
             animation: pulse 1.5s infinite;
-        }
-
-        .btn-convert {
-            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-            color: white;
-            margin-top: 15px;
-        }
-
-        .btn-convert:hover:not(:disabled) {
-            transform: scale(1.02);
-        }
-
-        .btn-convert:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
         }
 
         .btn-download {
@@ -173,31 +158,43 @@
         .icon {
             font-size: 1.3rem;
         }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            color: #64748b;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Voice Changer</h1>
-        <p class="subtitle">Graba y convierte tu voz con ElevenLabs</p>
+        <p class="subtitle">Graba tu voz y conviértela con ElevenLabs</p>
 
-        <div class="input-group">
-            <label for="voiceSelect">Selecciona una voz</label>
-            <select id="voiceSelect">
-                <option value="">Cargando voces...</option>
-            </select>
+        <div class="section">
+            <div class="section-title">1. Graba tu mensaje</div>
+            <button class="btn btn-record" id="recordBtn">
+                <span class="icon">🎤</span>
+                <span id="recordText">Grabar</span>
+            </button>
         </div>
-
-        <button class="btn btn-record" id="recordBtn">
-            <span class="icon">🎤</span>
-            <span id="recordText">Grabar</span>
-        </button>
 
         <div class="status hidden" id="status"></div>
 
-        <button class="btn btn-convert hidden" id="convertBtn">
-            <span class="icon">✨</span>
-            Convertir voz
-        </button>
+        <div class="section hidden" id="voiceSection">
+            <div class="section-title">2. Selecciona la voz</div>
+            <div class="input-group">
+                <select id="voiceSelect">
+                    <option value="">Selecciona una voz</option>
+                </select>
+            </div>
+        </div>
 
         <div class="audio-player hidden" id="playerContainer">
             <audio id="audioPlayer" controls></audio>
@@ -212,16 +209,17 @@
     <script>
         const recordBtn = document.getElementById('recordBtn');
         const recordText = document.getElementById('recordText');
-        const convertBtn = document.getElementById('convertBtn');
         const downloadBtn = document.getElementById('downloadBtn');
         const statusDiv = document.getElementById('status');
         const audioPlayer = document.getElementById('audioPlayer');
         const playerContainer = document.getElementById('playerContainer');
         const voiceSelect = document.getElementById('voiceSelect');
+        const voiceSection = document.getElementById('voiceSection');
 
         let mediaRecorder = null;
         let audioChunks = [];
         let audioBlob = null;
+        let isConverting = false;
 
         // Cargar voces desde el JSON
         async function loadVoices() {
@@ -244,13 +242,6 @@
 
         loadVoices();
 
-        // Auto-convertir cuando cambia la voz si ya hay audio grabado
-        voiceSelect.addEventListener('change', () => {
-            if (audioBlob && voiceSelect.value) {
-                convertVoice();
-            }
-        });
-
         function showStatus(message, type = '') {
             statusDiv.textContent = message;
             statusDiv.className = 'status ' + type;
@@ -261,6 +252,7 @@
             statusDiv.classList.add('hidden');
         }
 
+        // Grabar audio
         recordBtn.addEventListener('click', async () => {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
@@ -281,30 +273,49 @@
                 mediaRecorder.onstop = () => {
                     audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     stream.getTracks().forEach(track => track.stop());
-                    convertBtn.classList.remove('hidden');
-                    showStatus('Grabación lista. Selecciona una voz y se convertirá automáticamente.', 'success');
+
+                    // Mostrar selector de voz
+                    voiceSection.classList.remove('hidden');
+                    hideStatus();
+                    playerContainer.classList.add('hidden');
+                    downloadBtn.classList.add('hidden');
+
+                    // Auto-convertir si ya hay una voz seleccionada
+                    if (voiceSelect.value) {
+                        convertVoice();
+                    } else {
+                        showStatus('Ahora selecciona una voz para convertir', 'success');
+                    }
                 };
 
                 mediaRecorder.start();
                 recordBtn.classList.add('recording');
                 recordText.textContent = 'Detener';
                 hideStatus();
-                convertBtn.classList.add('hidden');
-                downloadBtn.classList.add('hidden');
+                voiceSection.classList.add('hidden');
                 playerContainer.classList.add('hidden');
+                downloadBtn.classList.add('hidden');
             } catch (err) {
                 showStatus('Error: No se pudo acceder al micrófono', 'error');
             }
         });
 
+        // Cambiar voz → auto-convertir
+        voiceSelect.addEventListener('change', () => {
+            if (audioBlob && voiceSelect.value && !isConverting) {
+                convertVoice();
+            }
+        });
+
+        // Convertir voz
         async function convertVoice() {
             const voiceId = voiceSelect.value;
 
-            if (!voiceId || !audioBlob) return;
+            if (!voiceId || !audioBlob || isConverting) return;
 
-            convertBtn.disabled = true;
-            convertBtn.innerHTML = '<span class="icon">⏳</span> Convirtiendo...';
-            showStatus('Convirtiendo con la voz seleccionada...');
+            isConverting = true;
+            hideStatus();
+            showStatus('Convirtiendo...');
 
             try {
                 const reader = new FileReader();
@@ -341,20 +352,16 @@
                         a.click();
                     };
 
-                    showStatus('¡Audio convertido exitosamente!', 'success');
-                    convertBtn.disabled = false;
-                    convertBtn.innerHTML = '<span class="icon">✨</span> Convertir voz';
+                    showStatus('¡Listo! Cambia la voz para probar otra.', 'success');
+                    isConverting = false;
                 };
 
                 reader.readAsDataURL(audioBlob);
             } catch (err) {
                 showStatus('Error: ' + err.message, 'error');
-                convertBtn.disabled = false;
-                convertBtn.innerHTML = '<span class="icon">✨</span> Convertir voz';
+                isConverting = false;
             }
         }
-
-        convertBtn.addEventListener('click', convertVoice);
     </script>
 </body>
 </html>
