@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const FormData = require('form-data');
 
 module.exports = async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -20,20 +21,25 @@ module.exports = async function handler(req, res) {
 
         const audioBuffer = Buffer.from(audio, 'base64');
 
+        const form = new FormData();
+        form.append('audio', audioBuffer, { filename: 'recording.webm', contentType: 'audio/webm' });
+        form.append('model_id', 'eleven_multilingual_sts_v2');
+
         const response = await fetch(
             `https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`,
             {
                 method: 'POST',
                 headers: {
                     'xi-api-key': apiKey,
-                    'Content-Type': 'application/octet-stream'
+                    ...form.getHeaders()
                 },
-                body: audioBuffer
+                body: form
             }
         );
 
         if (!response.ok) {
             const errorText = await response.text();
+            console.error('ElevenLabs error:', errorText);
             return res.status(response.status).json({ error: errorText });
         }
 
@@ -42,6 +48,7 @@ module.exports = async function handler(req, res) {
         res.setHeader('Content-Type', 'audio/mpeg');
         res.send(resultBuffer);
     } catch (error) {
+        console.error('Function error:', error);
         return res.status(500).json({ error: error.message });
     }
 };
